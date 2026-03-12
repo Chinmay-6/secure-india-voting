@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Candidate {
+  id        String   @id @default(cuid())
+  name      String
+  party     String
+  symbol    String
+  bio       String
+  votes     Vote[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Voter {
+  id             String   @id @default(cuid())
+  hashedAadhaar  String   @unique
+  displayName    String?
+  isVerified     Boolean  @default(false)
+  hasVoted       Boolean  @default(false)
+  faceDescriptor String
+  sessionToken   String?  @unique
+  vote           Vote?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Vote {
+  id          String   @id @default(cuid())
+  candidate   Candidate @relation(fields: [candidateId], references: [id])
+  candidateId String
+  voter       Voter    @relation(fields: [voterId], references: [id])
+  voterId     String   @unique
+  timestamp   DateTime @default(now())
+  receiptHash String   @unique
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  sessions     AdminSession[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model AdminSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  admin     AdminUser @relation(fields: [adminId], references: [id])
+  adminId   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model AdminLoginAttempt {
+  id        String   @id @default(cuid())
+  ip        String
+  createdAt DateTime @default(now())
+
+  @@index([ip, createdAt])
+}
+
+model Election {
+  id        String   @id @default(cuid())
+  status    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
