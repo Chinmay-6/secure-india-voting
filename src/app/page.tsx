@@ -13,7 +13,7 @@ export default function Home() {
             </div>
             <div className="flex flex-col">
               <h1 className="text-2xl sm:text-3xl font-semibold text-(--np-ink)">
-                Secure India Voting Platform
+                VOTEXA - Blockchain voting system
               </h1>
               <p className="text-xs sm:text-sm text-(--np-ink-muted)">
                 Aadhaar-backed identity, biometric verification, and privacy-preserving digital ballots.

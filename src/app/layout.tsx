@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Secure India Voting Platform",
-  description: "Secure, privacy-first digital voting experience for India.",
+  title: "VOTEXA - Blockchain voting system",
+  description: "VOTEXA is a secure, blockchain-powered digital voting system.",
 };
 
 export default function RootLayout({
@@ -34,14 +34,14 @@ export default function RootLayout({
             <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full bg-(--np-ink)/90 text-(--np-white) text-sm font-semibold">
-                  SI
+                  VX
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-semibold tracking-wide text-(--np-ink)">
-                    Secure India Voting
+                    VOTEXA
                   </span>
                   <span className="text-xs text-(--np-ink-muted)">
-                    National Digital Ballot Initiative
+                    Blockchain voting system
                   </span>
                 </div>
               </div>

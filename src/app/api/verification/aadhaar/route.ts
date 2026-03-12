@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     },
   });
 
-  console.info("Secure India Voting OTP:", otpCode, "Mobile:", mobile);
+  console.info("VOTEXA OTP:", otpCode, "Mobile:", mobile);
 
   await appendAuditBlock(
     "voter.otp.send",

@@ -88,7 +88,7 @@ export default function VotePage() {
       const timestamp = String(data.timestamp);
       const doc = new jsPDF();
       doc.setFontSize(14);
-      doc.text("Secure India Voting Platform", 20, 30);
+      doc.text("VOTEXA - Blockchain voting system", 20, 30);
       doc.setFontSize(10);
       doc.text("Encrypted Voting Receipt", 20, 40);
       doc.text(`Receipt Reference: ${receiptHash}`, 20, 52);
