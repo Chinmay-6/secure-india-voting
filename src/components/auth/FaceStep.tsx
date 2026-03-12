@@ -5,7 +5,7 @@ import { Camera, ScanFace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthFlowStore } from "@/store/useAuthFlow";
 import ReactWebcam from "react-webcam";
-import { computeFaceDescriptorFromDataUrl, loadFaceModels } from "@/lib/faceApiClient";
+import { computeFaceDescriptorFromDataUrl, euclideanDistance, loadFaceModels } from "@/lib/faceApiClient";
 
 type FaceStepProps = {
   onReady: () => void;
@@ -54,9 +54,28 @@ export function FaceStep({ onReady }: FaceStepProps) {
       return;
     }
     try {
-      const descriptor = await computeFaceDescriptorFromDataUrl(canvasShot);
-      if (!descriptor) {
+      const descriptor1 = await computeFaceDescriptorFromDataUrl(canvasShot);
+      if (!descriptor1) {
         setErrorNote("No face detected. Improve lighting and center your face.");
+        setMatchingFlag("idle");
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 850));
+      const canvasShot2 = webcamRef.current.getScreenshot();
+      if (!canvasShot2) {
+        setErrorNote("Unable to capture a second frame for liveness check.");
+        setMatchingFlag("idle");
+        return;
+      }
+      const descriptor2 = await computeFaceDescriptorFromDataUrl(canvasShot2);
+      if (!descriptor2) {
+        setErrorNote("No face detected in second frame. Try again.");
+        setMatchingFlag("idle");
+        return;
+      }
+      const drift = euclideanDistance(descriptor1, descriptor2);
+      if (!(drift > 0.02 && drift < 0.35)) {
+        setErrorNote("Liveness check failed. Please blink or slightly move and try again.");
         setMatchingFlag("idle");
         return;
       }
@@ -67,7 +86,7 @@ export function FaceStep({ onReady }: FaceStepProps) {
         },
         body: JSON.stringify({
           voterId,
-          faceDescriptor: JSON.stringify(descriptor),
+          faceDescriptor: JSON.stringify(descriptor2),
         }),
       });
       if (!response.ok) {
@@ -83,7 +102,7 @@ export function FaceStep({ onReady }: FaceStepProps) {
         return;
       }
       const voterHandle = String(voterId);
-      setFaceStage(new Float32Array(0), voterHandle);
+      setFaceStage(new Float32Array(descriptor2), voterHandle);
       setMatchingFlag("matched");
       sessionStorage.setItem("svp_ticket", String(data.sessionToken));
       onReady();

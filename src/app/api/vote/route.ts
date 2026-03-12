@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prismaClient } from "@/lib/prisma";
 import { forgeReceiptHash } from "@/lib/hash";
 import { appendAuditBlock } from "@/lib/auditChain";
+import { anchorReceiptToFabric } from "@/lib/fabricAnchor";
 
 export async function POST(request: Request) {
   const token = request.headers.get("x-session-token") || "";
@@ -48,6 +49,22 @@ export async function POST(request: Request) {
     { voterId: voter.id, candidateId: candidate.id, receiptHash: vote.receiptHash },
     { actorType: "voter", actorId: voter.id },
   );
+
+  const anchored = await anchorReceiptToFabric({ receiptHash: vote.receiptHash, issuedAt: vote.timestamp });
+  await appendAuditBlock(
+    "vote.anchor.fabric",
+    {
+      receiptHash: vote.receiptHash,
+      payloadHash: anchored.payloadHash,
+      ok: anchored.ok,
+      mode: anchored.mode,
+      txId: anchored.ok ? anchored.txId : null,
+      blockNumber: anchored.ok ? anchored.blockNumber : null,
+      status: anchored.ok ? null : (anchored as any).status ?? null,
+    },
+    { actorType: "system", actorId: "fabric" },
+  );
+
   return NextResponse.json({
     id: vote.id,
     receiptHash: vote.receiptHash,

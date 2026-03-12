@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Camera, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -76,7 +77,7 @@ export default function RegisterPage() {
         setSubmitting(false);
         return;
       }
-      const response = await fetch("/api/verification/aadhaar", {
+      const response = await fetch("/api/voter/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -86,7 +87,7 @@ export default function RegisterPage() {
           mobile: mobileInput,
           displayName: nameInput || undefined,
           selfie: selfieDataUrl,
-          faceDescriptor: JSON.stringify(descriptor),
+          faceDescriptor: descriptor,
         }),
       });
       if (!response.ok) {
@@ -178,8 +179,9 @@ export default function RegisterPage() {
         {selfieDataUrl && (
           <div className="rounded-xl border border-(--np-border) bg-white p-3">
             <div className="text-[11px] font-medium text-(--np-ink-muted) mb-2">Captured selfie preview</div>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={selfieDataUrl} alt="Captured selfie" className="w-full rounded-lg" />
+            <div className="relative w-full aspect-video overflow-hidden rounded-lg bg-black/5">
+              <Image src={selfieDataUrl} alt="Captured selfie" fill className="object-cover" sizes="(max-width: 768px) 100vw, 600px" />
+            </div>
           </div>
         )}
       </div>

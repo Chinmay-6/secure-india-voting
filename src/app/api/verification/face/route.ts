@@ -12,9 +12,20 @@ export async function POST(request: Request) {
   }
   const voter = await prismaClient.voter.findUnique({
     where: { id: voterId },
+    include: {
+      otpChallenges: {
+        where: { usedAt: { not: null } },
+        orderBy: { usedAt: "desc" },
+        take: 1,
+      },
+    },
   });
   if (!voter) {
     return NextResponse.json({ error: "Voter not found" }, { status: 404 });
+  }
+  const recentOtp = voter.otpChallenges[0] ?? null;
+  if (!recentOtp || !recentOtp.usedAt || Date.now() - recentOtp.usedAt.getTime() > 10 * 60 * 1000) {
+    return NextResponse.json({ error: "OTP verification required" }, { status: 403 });
   }
   const threshold = Number(process.env.FACE_MATCH_THRESHOLD ?? "0.55");
   if (!Number.isFinite(threshold) || threshold < 0.1 || threshold > 2) {

@@ -32,7 +32,7 @@ export const useAuthFlowStore = create<AuthStoreShape>((set) => ({
   sessionKey: undefined,
   setAadhaarStage: (aadhaarToken, mobileToken, challengeId) =>
     set(() => ({
-      phase: "face",
+      phase: "aadhaar",
       aadhaarToken,
       mobileToken,
       challengeId,
@@ -60,6 +60,7 @@ export const useAuthFlowStore = create<AuthStoreShape>((set) => ({
       aadhaarToken: undefined,
       challengeId: undefined,
       mobileToken: undefined,
+      voterId: undefined,
       voterHandle: undefined,
       faceVector: null,
       sessionKey: undefined,
