@@ -11,6 +11,7 @@ type AadhaarOtpStepProps = {
 
 export function AadhaarOtpStep({ onAdvance }: AadhaarOtpStepProps) {
   const [aadhaarDraft, setAadhaarDraft] = useState("");
+  const [mobileDraft, setMobileDraft] = useState("");
   const [otpDraft, setOtpDraft] = useState("");
   const [phaseToken, setPhaseToken] = useState<"idle" | "otp-sent" | "verifying">("idle");
   const [errorLabel, setErrorLabel] = useState("");
@@ -23,28 +24,36 @@ export function AadhaarOtpStep({ onAdvance }: AadhaarOtpStepProps) {
       setErrorLabel("Enter a valid 12-digit Aadhaar number.");
       return;
     }
-    setPhaseToken("otp-sent");
-    const otpSimulated = String(Math.floor(100000 + Math.random() * 900000));
-    setAadhaarStage(aadhaarDraft, otpSimulated);
-    console.info("Secure India Voting OTP:", otpSimulated);
+    if (!/^\d{10}$/.test(mobileDraft)) {
+      setErrorLabel("Enter the 10-digit mobile number you registered with.");
+      return;
+    }
+    setPhaseToken("verifying");
     try {
-      const response = await fetch("/api/verification/aadhaar", {
+      const response = await fetch("/api/verification/otp/request", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ aadhaar: aadhaarDraft }),
+        body: JSON.stringify({ aadhaar: aadhaarDraft, mobile: mobileDraft }),
       });
       if (!response.ok) {
-        setErrorLabel("Unable to initialise verification. Try again.");
+        const data = await response.json().catch(() => ({}));
+        setErrorLabel(data.error || "Unable to send OTP. Try again.");
+        setPhaseToken("idle");
         return;
       }
       const data = await response.json();
-      if (data.voterId) {
-        registerVoterId(String(data.voterId));
+      const voterId = data.voterId ? String(data.voterId) : "";
+      const challengeId = data.challengeId ? String(data.challengeId) : "";
+      if (voterId) registerVoterId(voterId);
+      if (challengeId) {
+        setAadhaarStage(aadhaarDraft, mobileDraft, challengeId);
       }
+      setPhaseToken("otp-sent");
     } catch {
       setErrorLabel("Network issue while creating secure voter record.");
+      setPhaseToken("idle");
     }
   }
 
@@ -52,18 +61,29 @@ export function AadhaarOtpStep({ onAdvance }: AadhaarOtpStepProps) {
     setErrorLabel("");
     setPhaseToken("verifying");
     const snapshot = useAuthFlowStore.getState();
-    if (!snapshot.otpShadow) {
-      setErrorLabel("Verification channel unavailable. Refresh and try again.");
-      setPhaseToken("otp-sent");
+    if (!snapshot.challengeId) {
+      setErrorLabel("OTP request not initialised. Send OTP again.");
+      setPhaseToken("idle");
       return;
     }
-    if (otpDraft !== snapshot.otpShadow) {
-      setErrorLabel("Incorrect OTP. Use the latest code.");
+    try {
+      const response = await fetch("/api/verification/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ challengeId: snapshot.challengeId, otp: otpDraft }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setErrorLabel(data.error || "OTP verification failed.");
+        setPhaseToken("otp-sent");
+        return;
+      }
+      setPhaseToken("idle");
+      onAdvance();
+    } catch {
+      setErrorLabel("Network error during OTP verification.");
       setPhaseToken("otp-sent");
-      return;
     }
-    setPhaseToken("idle");
-    onAdvance();
   }
 
   return (
@@ -92,10 +112,20 @@ export function AadhaarOtpStep({ onAdvance }: AadhaarOtpStepProps) {
             inputMode="numeric"
           />
         </label>
+        <label className="text-xs font-medium text-[var(--np-ink-muted)]">
+          Registered mobile number
+          <input
+            value={mobileDraft}
+            onChange={(e) => setMobileDraft(e.target.value.replace(/\D/g, "").slice(0, 10))}
+            className="mt-1 w-full rounded-lg border border-[var(--np-border)] bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--np-saffron)]"
+            placeholder="10-digit mobile number"
+            inputMode="numeric"
+          />
+        </label>
         <div className="flex items-center justify-between gap-3">
           <div className="np-pill">
             <SmartphoneNfc className="h-3 w-3" />
-            OTP will be simulated for this session only.
+            OTP is generated on the server. (In dev, it is printed in the server log.)
           </div>
           <Button
             type="button"
@@ -126,7 +156,7 @@ export function AadhaarOtpStep({ onAdvance }: AadhaarOtpStepProps) {
           type="button"
           size="lg"
           onClick={handleVerifyOtp}
-          disabled={phaseToken === "verifying" || otpDraft.length !== 6}
+          disabled={phaseToken !== "otp-sent" || otpDraft.length !== 6}
         >
           {phaseToken === "verifying" ? "Verifying..." : "Continue"}
         </Button>

@@ -1,4 +1,16 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
+
+function sha256Hex(value: string) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function safeEqual(a: string, b: string) {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -9,13 +21,22 @@ export async function POST(request: Request) {
   }
   const expectedUsername = process.env.ADMIN_USERNAME ?? "";
   const expectedPassword = process.env.ADMIN_PASSWORD ?? "";
+  const expectedPasswordHash = process.env.ADMIN_PASSWORD_HASH ?? "";
+  const passwordSalt = process.env.ADMIN_PASSWORD_SALT ?? "";
   if (!expectedUsername || !expectedPassword) {
-    return NextResponse.json({ error: "Admin credentials not configured" }, { status: 500 });
+    if (!expectedUsername || (!expectedPasswordHash && !expectedPassword)) {
+      return NextResponse.json({ error: "Admin credentials not configured" }, { status: 500 });
+    }
   }
-  if (username !== expectedUsername || password !== expectedPassword) {
+  const usernameOk = username === expectedUsername;
+  const passwordOk = expectedPasswordHash
+    ? safeEqual(sha256Hex(`${passwordSalt}${password}`), expectedPasswordHash)
+    : password === expectedPassword;
+
+  if (!usernameOk || !passwordOk) {
     return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
   }
-  const signature = process.env.ADMIN_SESSION_TOKEN ?? "";
+  const signature = process.env.ADMIN_SESSION_SECRET ?? "";
   if (!signature) {
     return NextResponse.json({ error: "Admin session token missing" }, { status: 500 });
   }

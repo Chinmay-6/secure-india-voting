@@ -12,6 +12,11 @@ model Candidate {
   name      String
   party     String
   symbol    String
+  symbolImage     Bytes?
+  symbolImageMime String?
+  verificationDoc Bytes?
+  verificationDocMime String?
+  verificationDetails String?
   bio       String
   votes     Vote[]
   createdAt DateTime @default(now())
@@ -21,14 +26,30 @@ model Candidate {
 model Voter {
   id             String   @id @default(cuid())
   hashedAadhaar  String   @unique
+  mobile         String?
   displayName    String?
   isVerified     Boolean  @default(false)
   hasVoted       Boolean  @default(false)
-  faceDescriptor String
+  faceDescriptor String?
+  selfieImage    Bytes?
   sessionToken   String?  @unique
   vote           Vote?
+  otpChallenges  VoterOtpChallenge[]
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+model VoterOtpChallenge {
+  id        String   @id @default(cuid())
+  voter     Voter    @relation(fields: [voterId], references: [id])
+  voterId   String
+  otpHash   String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([voterId, expiresAt])
 }
 
 model Vote {
@@ -39,6 +60,20 @@ model Vote {
   voterId     String   @unique
   timestamp   DateTime @default(now())
   receiptHash String   @unique
+}
+
+model AuditBlock {
+  id        String   @id @default(cuid())
+  idx       Int      @unique
+  prevHash  String
+  hash      String   @unique
+  action    String
+  actorType String?
+  actorId   String?
+  payload   Json
+  createdAt DateTime @default(now())
+
+  @@index([action, createdAt])
 }
 
 model AdminUser {

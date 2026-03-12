@@ -1,25 +1,81 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IdCard } from "lucide-react";
+import { Camera, IdCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ReactWebcam from "react-webcam";
+import { computeFaceDescriptorFromDataUrl, loadFaceModels } from "@/lib/faceApiClient";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [aadhaarInput, setAadhaarInput] = useState("");
+  const [mobileInput, setMobileInput] = useState("");
   const [nameInput, setNameInput] = useState("");
+  const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState("");
+  const [capturing, setCapturing] = useState(false);
+  const webcamRef = useRef<ReactWebcam | null>(null);
+  const [modelsReady, setModelsReady] = useState(false);
+  const [modelError, setModelError] = useState("");
+
+  async function ensureModels() {
+    setModelError("");
+    try {
+      await loadFaceModels();
+      setModelsReady(true);
+      return true;
+    } catch {
+      setModelError("Face verification models are missing. Run: node scripts/download-face-models.mjs");
+      setModelsReady(false);
+      return false;
+    }
+  }
+
+  async function handleCaptureSelfie() {
+    setErrorText("");
+    if (!webcamRef.current) return;
+    setCapturing(true);
+    try {
+      const shot = webcamRef.current.getScreenshot();
+      if (!shot) {
+        setErrorText("Unable to capture selfie. Allow camera access and try again.");
+        return;
+      }
+      setSelfieDataUrl(shot);
+    } finally {
+      setCapturing(false);
+    }
+  }
 
   async function handleRegister() {
     setErrorText("");
+    const okModels = await ensureModels();
+    if (!okModels) {
+      setErrorText("Face models unavailable. Run: node scripts/download-face-models.mjs");
+      return;
+    }
     if (!/^\d{12}$/.test(aadhaarInput)) {
       setErrorText("Enter a valid 12-digit Aadhaar number.");
       return;
     }
+    if (!/^\d{10}$/.test(mobileInput)) {
+      setErrorText("Enter a valid 10-digit mobile number.");
+      return;
+    }
+    if (!selfieDataUrl) {
+      setErrorText("Capture a clear selfie to register.");
+      return;
+    }
     setSubmitting(true);
     try {
+      const descriptor = await computeFaceDescriptorFromDataUrl(selfieDataUrl);
+      if (!descriptor) {
+        setErrorText("No face detected in selfie. Please retake in good lighting.");
+        setSubmitting(false);
+        return;
+      }
       const response = await fetch("/api/verification/aadhaar", {
         method: "POST",
         headers: {
@@ -27,11 +83,15 @@ export default function RegisterPage() {
         },
         body: JSON.stringify({
           aadhaar: aadhaarInput,
+          mobile: mobileInput,
           displayName: nameInput || undefined,
+          selfie: selfieDataUrl,
+          faceDescriptor: JSON.stringify(descriptor),
         }),
       });
       if (!response.ok) {
-        setErrorText("Unable to register. Try again.");
+        const data = await response.json().catch(() => ({}));
+        setErrorText(data.error || "Unable to register. Try again.");
         setSubmitting(false);
         return;
       }
@@ -74,6 +134,54 @@ export default function RegisterPage() {
             inputMode="numeric"
           />
         </label>
+        <label className="text-xs font-medium text-(--np-ink-muted)">
+          Mobile number (linked to Aadhaar)
+          <input
+            value={mobileInput}
+            onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, "").slice(0, 10))}
+            className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+            placeholder="10-digit mobile number"
+            inputMode="numeric"
+          />
+        </label>
+      </div>
+      <div className="space-y-3">
+        <div className="text-xs font-medium text-(--np-ink-muted)">Selfie capture</div>
+        <div className="relative overflow-hidden rounded-xl border border-(--np-border) bg-black/70 aspect-video flex items-center justify-center">
+          <ReactWebcam
+            ref={webcamRef}
+            audio={false}
+            screenshotFormat="image/jpeg"
+            className="h-full w-full object-cover"
+            videoConstraints={{ facingMode: "user" }}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <div className="np-pill">
+            <Camera className="h-3 w-3" />
+            Capture a clear front-facing selfie.
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={handleCaptureSelfie} disabled={capturing}>
+            {capturing ? "Capturing..." : selfieDataUrl ? "Retake selfie" : "Capture selfie"}
+          </Button>
+        </div>
+        {!modelsReady && (
+          <p className="text-[11px] text-(--np-ink-muted)">
+            Face verification models must be available at <span className="font-mono">/models</span>.
+          </p>
+        )}
+        {modelError && (
+          <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            {modelError}
+          </p>
+        )}
+        {selfieDataUrl && (
+          <div className="rounded-xl border border-(--np-border) bg-white p-3">
+            <div className="text-[11px] font-medium text-(--np-ink-muted) mb-2">Captured selfie preview</div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={selfieDataUrl} alt="Captured selfie" className="w-full rounded-lg" />
+          </div>
+        )}
       </div>
       {errorText && (
         <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">

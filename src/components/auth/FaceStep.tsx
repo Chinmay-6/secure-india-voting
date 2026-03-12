@@ -1,12 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useRef, useState } from "react";
 import { Camera, ScanFace } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuthFlowStore } from "@/store/useAuthFlow";
-
-const Webcam = dynamic(() => import("react-webcam"), { ssr: false });
+import ReactWebcam from "react-webcam";
+import { computeFaceDescriptorFromDataUrl, loadFaceModels } from "@/lib/faceApiClient";
 
 type FaceStepProps = {
   onReady: () => void;
@@ -15,13 +14,32 @@ type FaceStepProps = {
 export function FaceStep({ onReady }: FaceStepProps) {
   const [errorNote, setErrorNote] = useState("");
   const [matchingFlag, setMatchingFlag] = useState<"idle" | "capturing" | "matched">("idle");
-  const webcamRef = useRef<any>(null);
+  const webcamRef = useRef<ReactWebcam | null>(null);
   const setFaceStage = useAuthFlowStore((s) => s.setFaceStage);
   const voterId = useAuthFlowStore((s) => s.voterId);
+  const [modelsReady, setModelsReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    loadFaceModels()
+      .then(() => {
+        if (active) setModelsReady(true);
+      })
+      .catch(() => {
+        if (active) setModelsReady(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function handleCapture() {
     if (!voterId) {
       setErrorNote("Verification session is incomplete. Restart verification.");
+      return;
+    }
+    if (!modelsReady) {
+      setErrorNote("Face models missing. Run: node scripts/download-face-models.mjs");
       return;
     }
     if (!webcamRef.current) {
@@ -35,11 +53,13 @@ export function FaceStep({ onReady }: FaceStepProps) {
       setMatchingFlag("idle");
       return;
     }
-    const vector = new Float32Array(128);
-    for (let indexToken = 0; indexToken < vector.length; indexToken += 1) {
-      vector[indexToken] = Math.random() - 0.5;
-    }
     try {
+      const descriptor = await computeFaceDescriptorFromDataUrl(canvasShot);
+      if (!descriptor) {
+        setErrorNote("No face detected. Improve lighting and center your face.");
+        setMatchingFlag("idle");
+        return;
+      }
       const response = await fetch("/api/verification/face", {
         method: "POST",
         headers: {
@@ -47,11 +67,12 @@ export function FaceStep({ onReady }: FaceStepProps) {
         },
         body: JSON.stringify({
           voterId,
-          descriptor: Array.from(vector),
+          faceDescriptor: JSON.stringify(descriptor),
         }),
       });
       if (!response.ok) {
-        setErrorNote("Unable to complete secure verification. Try again.");
+        const data = await response.json().catch(() => ({}));
+        setErrorNote(data.error || "Unable to complete secure verification. Try again.");
         setMatchingFlag("idle");
         return;
       }
@@ -62,7 +83,7 @@ export function FaceStep({ onReady }: FaceStepProps) {
         return;
       }
       const voterHandle = String(voterId);
-      setFaceStage(vector, voterHandle);
+      setFaceStage(new Float32Array(0), voterHandle);
       setMatchingFlag("matched");
       sessionStorage.setItem("svp_ticket", String(data.sessionToken));
       onReady();
@@ -89,7 +110,7 @@ export function FaceStep({ onReady }: FaceStepProps) {
       </div>
       <div className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)] items-start">
         <div className="relative overflow-hidden rounded-xl border border-(--np-border) bg-black/70 aspect-video flex items-center justify-center">
-          <Webcam
+          <ReactWebcam
             ref={webcamRef}
             audio={false}
             screenshotFormat="image/jpeg"
@@ -102,6 +123,12 @@ export function FaceStep({ onReady }: FaceStepProps) {
             <Camera className="h-3 w-3" />
             Position your face inside the frame and look directly at the camera.
           </div>
+          {!modelsReady && (
+            <p className="text-xs text-(--np-ink-muted)">
+              Loading face models… (if this never completes, run{" "}
+              <span className="font-mono">node scripts/download-face-models.mjs</span>)
+            </p>
+          )}
           <ul className="space-y-1 text-xs text-(--np-ink-muted)">
             <li>Ensure there is sufficient lighting around your face.</li>
             <li>Remove any objects covering your face where possible.</li>

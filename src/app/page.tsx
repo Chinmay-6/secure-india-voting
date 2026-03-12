@@ -46,7 +46,10 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <Button asChild size="lg">
-              <Link href="/verify">Start voter verification</Link>
+              <Link href="/register">Register to vote</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg">
+              <Link href="/verify">Already registered? Verify</Link>
             </Button>
             <Button asChild variant="outline" size="lg">
               <Link href="/admin/dashboard">Go to admin portal</Link>

@@ -31,7 +31,7 @@ export default function VotePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const token = sessionStorage.getItem("svp_ticket");
+    const token = sessionStorage.getItem("svp_ticket") ?? "";
     if (!token) {
       router.replace("/verify");
       return;
@@ -64,7 +64,7 @@ export default function VotePage() {
     if (!selectedId) {
       return;
     }
-    const token = sessionStorage.getItem("svp_ticket");
+    const token = sessionStorage.getItem("svp_ticket") ?? "";
     if (!token) {
       router.replace("/verify");
       return;
@@ -187,8 +187,24 @@ export default function VotePage() {
                   <div className="text-sm font-semibold text-(--np-ink)">{c.name}</div>
                   <div className="text-xs text-(--np-ink-muted)">{c.party}</div>
                 </div>
-                <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-(--np-ink)">
-                  {c.symbol.slice(0, 3).toUpperCase()}
+                <div className="h-10 w-10 rounded-full bg-gray-100 overflow-hidden flex items-center justify-center text-xs font-medium text-(--np-ink) relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/candidates/${c.id}/symbol`}
+                    alt={`${c.name} symbol`}
+                    className="h-full w-full object-cover"
+                    onLoad={(e) => {
+                      const parent = e.currentTarget.parentElement;
+                      const fallback = parent?.querySelector("[data-fallback]");
+                      if (fallback) (fallback as HTMLElement).style.display = "none";
+                    }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                  <span data-fallback className="px-2">
+                    {c.symbol.slice(0, 3).toUpperCase()}
+                  </span>
                 </div>
               </div>
               <p className="text-xs text-(--np-ink-muted) line-clamp-3">{c.bio}</p>

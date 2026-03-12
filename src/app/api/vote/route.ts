@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prismaClient } from "@/lib/prisma";
 import { forgeReceiptHash } from "@/lib/hash";
+import { appendAuditBlock } from "@/lib/auditChain";
 
 export async function POST(request: Request) {
   const token = request.headers.get("x-session-token") || "";
@@ -42,6 +43,11 @@ export async function POST(request: Request) {
       hasVoted: true,
     },
   });
+  await appendAuditBlock(
+    "vote.cast",
+    { voterId: voter.id, candidateId: candidate.id, receiptHash: vote.receiptHash },
+    { actorType: "voter", actorId: voter.id },
+  );
   return NextResponse.json({
     id: vote.id,
     receiptHash: vote.receiptHash,

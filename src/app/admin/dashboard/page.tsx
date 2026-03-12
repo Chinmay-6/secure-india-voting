@@ -29,14 +29,55 @@ type MetricsShape = {
   candidates: CandidateRow[];
 };
 
+type VoterRow = {
+  id: string;
+  mobile: string | null;
+  displayName: string | null;
+  isVerified: boolean;
+  hasVoted: boolean;
+  createdAt: string;
+};
+
+type AuditRow = {
+  idx: number;
+  action: string;
+  actorType: string | null;
+  actorId: string | null;
+  createdAt: string;
+};
+
+type AuditApiRow = {
+  idx: number;
+  action: string;
+  actorType?: string | null;
+  actorId?: string | null;
+  createdAt: string;
+};
+
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<MetricsShape | null>(null);
   const [loading, setLoading] = useState(true);
+  const [voters, setVoters] = useState<VoterRow[]>([]);
+  const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [electionStatus, setElectionStatus] = useState<string>("");
+  const [settingStatus, setSettingStatus] = useState(false);
   const [nameDraft, setNameDraft] = useState("");
   const [partyDraft, setPartyDraft] = useState("");
   const [symbolDraft, setSymbolDraft] = useState("");
   const [bioDraft, setBioDraft] = useState("");
+  const [verificationDetailsDraft, setVerificationDetailsDraft] = useState("");
+  const [symbolImageFile, setSymbolImageFile] = useState<File | null>(null);
+  const [verificationDocFile, setVerificationDocFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
+
+  async function fileToDataUrl(file: File) {
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.readAsDataURL(file);
+    });
+  }
 
   async function loadMetrics() {
     setLoading(true);
@@ -46,14 +87,61 @@ export default function AdminDashboardPage() {
     setLoading(false);
   }
 
+  async function loadVoters() {
+    const response = await fetch("/api/admin/voters");
+    const data = await response.json();
+    setVoters(data.voters ?? []);
+  }
+
+  async function loadAudit() {
+    const response = await fetch("/api/admin/audit");
+    const data = await response.json();
+    setAudit(
+      ((data.blocks ?? []) as AuditApiRow[]).map((b) => ({
+        idx: b.idx,
+        action: b.action,
+        actorType: b.actorType ?? null,
+        actorId: b.actorId ?? null,
+        createdAt: b.createdAt,
+      })),
+    );
+  }
+
+  async function loadElection() {
+    const response = await fetch("/api/admin/election");
+    const data = await response.json();
+    setElectionStatus(data.election?.status ?? "");
+  }
+
   useEffect(() => {
     loadMetrics();
+    loadVoters();
+    loadAudit();
+    loadElection();
   }, []);
+
+  async function handleSetElectionStatus() {
+    if (!electionStatus) return;
+    setSettingStatus(true);
+    try {
+      await fetch("/api/admin/election", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: electionStatus }),
+      });
+      await loadElection();
+      await loadAudit();
+    } finally {
+      setSettingStatus(false);
+    }
+  }
 
   async function handleCreateCandidate() {
     if (!nameDraft || !partyDraft) return;
     setSaving(true);
     try {
+      const symbolImage = symbolImageFile ? await fileToDataUrl(symbolImageFile) : "";
+      const verificationDoc = verificationDocFile ? await fileToDataUrl(verificationDocFile) : "";
       await fetch("/api/admin/candidates", {
         method: "POST",
         headers: {
@@ -64,13 +152,20 @@ export default function AdminDashboardPage() {
           party: partyDraft,
           symbol: symbolDraft || nameDraft.charAt(0),
           bio: bioDraft || "Registered party candidate.",
+          symbolImage: symbolImage || undefined,
+          verificationDoc: verificationDoc || undefined,
+          verificationDetails: verificationDetailsDraft || undefined,
         }),
       });
       setNameDraft("");
       setPartyDraft("");
       setSymbolDraft("");
       setBioDraft("");
+      setVerificationDetailsDraft("");
+      setSymbolImageFile(null);
+      setVerificationDocFile(null);
       await loadMetrics();
+      await loadAudit();
     } finally {
       setSaving(false);
     }
@@ -81,6 +176,7 @@ export default function AdminDashboardPage() {
       method: "DELETE",
     });
     await loadMetrics();
+    await loadAudit();
   }
 
   async function handleLogout() {
@@ -164,6 +260,111 @@ export default function AdminDashboardPage() {
         <section className="np-card p-4 sm:p-6 space-y-4">
           <div className="flex items-center justify-between gap-3">
             <div>
+              <h2 className="text-sm font-semibold text-(--np-ink)">Election status</h2>
+              <p className="text-[11px] text-(--np-ink-muted)">Publish current election phase for auditing.</p>
+            </div>
+            <Button variant="outline" size="sm" type="button" onClick={loadElection}>
+              Refresh
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 items-end">
+            <label className="text-[11px] font-medium text-(--np-ink-muted)">
+              Status
+              <input
+                value={electionStatus}
+                onChange={(e) => setElectionStatus(e.target.value)}
+                className="mt-1 w-72 rounded-lg border border-(--np-border) bg-white px-2.5 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+                placeholder="e.g. OPEN / CLOSED"
+              />
+            </label>
+            <Button type="button" size="sm" onClick={handleSetElectionStatus} disabled={settingStatus || !electionStatus}>
+              {settingStatus ? "Saving..." : "Set status"}
+            </Button>
+          </div>
+        </section>
+        <section className="np-card p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-(--np-ink)">Registered voters (latest 100)</h2>
+              <p className="text-[11px] text-(--np-ink-muted)">Operational view for administrators.</p>
+            </div>
+            <Button variant="outline" size="sm" type="button" onClick={loadVoters}>
+              Refresh
+            </Button>
+          </div>
+          <div className="max-h-56 overflow-auto rounded-lg border border-(--np-border) bg-white">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-white">
+                <tr className="text-[11px] text-(--np-ink-muted)">
+                  <th className="text-left px-3 py-2">Name</th>
+                  <th className="text-left px-3 py-2">Mobile</th>
+                  <th className="text-left px-3 py-2">Verified</th>
+                  <th className="text-left px-3 py-2">Voted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {voters.map((v) => (
+                  <tr key={v.id} className="border-t border-(--np-border)">
+                    <td className="px-3 py-2">{v.displayName || v.id.slice(0, 8)}</td>
+                    <td className="px-3 py-2">{v.mobile ? `******${v.mobile.slice(-4)}` : "-"}</td>
+                    <td className="px-3 py-2">{v.isVerified ? "Yes" : "No"}</td>
+                    <td className="px-3 py-2">{v.hasVoted ? "Yes" : "No"}</td>
+                  </tr>
+                ))}
+                {voters.length === 0 && (
+                  <tr>
+                    <td className="px-3 py-3 text-(--np-ink-muted)" colSpan={4}>
+                      No voters found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section className="np-card p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-(--np-ink)">Audit chain (latest 50)</h2>
+              <p className="text-[11px] text-(--np-ink-muted)">Tamper-evident activity log.</p>
+            </div>
+            <Button variant="outline" size="sm" type="button" onClick={loadAudit}>
+              Refresh
+            </Button>
+          </div>
+          <div className="max-h-56 overflow-auto rounded-lg border border-(--np-border) bg-white">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-white">
+                <tr className="text-[11px] text-(--np-ink-muted)">
+                  <th className="text-left px-3 py-2">#</th>
+                  <th className="text-left px-3 py-2">Action</th>
+                  <th className="text-left px-3 py-2">Actor</th>
+                  <th className="text-left px-3 py-2">Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.map((a) => (
+                  <tr key={a.idx} className="border-t border-(--np-border)">
+                    <td className="px-3 py-2 font-mono text-[11px]">{a.idx}</td>
+                    <td className="px-3 py-2">{a.action}</td>
+                    <td className="px-3 py-2">{a.actorType ? `${a.actorType}` : "-"}{a.actorId ? `:${a.actorId}` : ""}</td>
+                    <td className="px-3 py-2">{new Date(a.createdAt).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {audit.length === 0 && (
+                  <tr>
+                    <td className="px-3 py-3 text-(--np-ink-muted)" colSpan={4}>
+                      No audit blocks found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+        <section className="np-card p-4 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
               <h2 className="text-sm font-semibold text-(--np-ink)">Candidate management</h2>
               <p className="text-[11px] text-(--np-ink-muted)">
                 Register and manage candidates participating in this election.
@@ -207,6 +408,35 @@ export default function AdminDashboardPage() {
                 Add candidate
               </Button>
             </div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-[11px] font-medium text-(--np-ink-muted)">
+              Symbol image upload
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => setSymbolImageFile(e.target.files?.[0] ?? null)}
+                className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-2.5 py-1.5 text-xs"
+              />
+            </label>
+            <label className="text-[11px] font-medium text-(--np-ink-muted)">
+              Candidate verification document
+              <input
+                type="file"
+                accept="application/pdf,image/*"
+                onChange={(e) => setVerificationDocFile(e.target.files?.[0] ?? null)}
+                className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-2.5 py-1.5 text-xs"
+              />
+            </label>
+            <label className="text-[11px] font-medium text-(--np-ink-muted) sm:col-span-2">
+              Verification details
+              <input
+                value={verificationDetailsDraft}
+                onChange={(e) => setVerificationDetailsDraft(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-2.5 py-1.5 text-xs outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+                placeholder="Officer notes, ID references, etc."
+              />
+            </label>
           </div>
           {metrics && metrics.candidates.length > 0 && (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] pt-2">

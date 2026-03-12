@@ -5,7 +5,8 @@ type AuthPhase = "aadhaar" | "face" | "ready";
 type AuthSnapshot = {
   phase: AuthPhase;
   aadhaarToken?: string;
-  otpShadow?: string;
+  challengeId?: string;
+  mobileToken?: string;
   voterId?: string;
   voterHandle?: string;
   faceVector?: Float32Array | null;
@@ -13,7 +14,7 @@ type AuthSnapshot = {
 };
 
 type AuthStoreShape = AuthSnapshot & {
-  setAadhaarStage: (aadhaarToken: string, otpShadow: string) => void;
+  setAadhaarStage: (aadhaarToken: string, mobileToken: string, challengeId: string) => void;
   registerVoterId: (voterId: string) => void;
   setFaceStage: (vector: Float32Array, voterHandle: string) => void;
   setCompleted: (sessionKey: string) => void;
@@ -23,16 +24,18 @@ type AuthStoreShape = AuthSnapshot & {
 export const useAuthFlowStore = create<AuthStoreShape>((set) => ({
   phase: "aadhaar",
   aadhaarToken: undefined,
-  otpShadow: undefined,
+  challengeId: undefined,
+  mobileToken: undefined,
   voterId: undefined,
   voterHandle: undefined,
   faceVector: null,
   sessionKey: undefined,
-  setAadhaarStage: (aadhaarToken, otpShadow) =>
+  setAadhaarStage: (aadhaarToken, mobileToken, challengeId) =>
     set(() => ({
       phase: "face",
       aadhaarToken,
-      otpShadow,
+      mobileToken,
+      challengeId,
     })),
   registerVoterId: (voterId) =>
     set((prev) => ({
@@ -55,7 +58,8 @@ export const useAuthFlowStore = create<AuthStoreShape>((set) => ({
     set(() => ({
       phase: "aadhaar",
       aadhaarToken: undefined,
-      otpShadow: undefined,
+      challengeId: undefined,
+      mobileToken: undefined,
       voterHandle: undefined,
       faceVector: null,
       sessionKey: undefined,
