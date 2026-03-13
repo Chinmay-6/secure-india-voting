@@ -70,11 +70,13 @@ export async function generateAadhaarOtp(aadhaarNumber: string) {
     const body = await res.text().catch(() => "");
     throw new Error(`AADHAAR OTP generate failed: ${res.status} ${body}`);
   }
-  const json = (await res.json().catch(() => ({}))) as GenerateOtpResponse;
-  const transactionId = json.data?.transaction_id;
-  const referenceId = json.data?.reference_id;
+  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const data = json.data as Record<string, unknown> | undefined;
+  const transactionId = String(json.transaction_id ?? data?.transaction_id ?? "").trim();
+  const rawRef = data?.reference_id ?? json.reference_id;
+  const referenceId = rawRef != null ? String(rawRef) : "";
   if (!transactionId || !referenceId) {
-    throw new Error("AADHAAR OTP generate missing transaction identifiers");
+    throw new Error(`AADHAAR OTP generate missing transaction identifiers. Response: ${JSON.stringify(json).slice(0, 500)}`);
   }
   return { transactionId, referenceId };
 }

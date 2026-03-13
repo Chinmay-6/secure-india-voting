@@ -159,16 +159,20 @@ export default function RegisterPage() {
               </Button>
             </div>
           )}
-          {kycStep === "otp-sent" && (
+          {kycStep !== "verified" && (
             <label className="text-xs font-medium text-(--np-ink-muted)">
-              OTP
+              OTP (received via SMS on your Aadhaar-linked mobile)
               <input
                 value={otpInput}
                 onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
-                placeholder="Enter 6-digit OTP"
+                placeholder={kycStep === "otp-sent" ? "Enter 6-digit OTP from SMS" : "Request OTP first"}
                 inputMode="numeric"
+                disabled={kycStep !== "otp-sent"}
               />
+              <p className="mt-1 text-[11px] text-(--np-ink-muted)">
+                Type the 6-digit OTP you receive on your registered mobile, then click Verify OTP.
+              </p>
             </label>
           )}
           {transactionId && (
@@ -199,7 +203,7 @@ export default function RegisterPage() {
                 disabled={kycLoading || otpInput.replace(/\D/g, "").length !== 6}
                 onClick={() => confirmIdentity(otpInput, aadhaarInput)}
               >
-                {kycLoading ? "Verifying OTP..." : "Confirm Aadhaar"}
+                {kycLoading ? "Verifying OTP..." : "Verify OTP"}
               </Button>
             </div>
           )}
