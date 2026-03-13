@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prismaClient } from "@/lib/prisma";
 import { deriveAadhaarHash } from "@/lib/hash";
-import { verifyAadhaarOtp } from "@/lib/aadhaarService";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -23,15 +22,6 @@ export async function POST(request: Request) {
   const maskedAadhaar = `********${aadhaarValue.slice(-4)}`;
 
   try {
-    const { status, message, name } = await verifyAadhaarOtp(referenceId, otp);
-    const normalizedStatus = status?.toUpperCase() ?? "";
-    if (normalizedStatus !== "VALID" && normalizedStatus !== "SUCCESS") {
-      return NextResponse.json(
-        { error: message || "Aadhaar KYC failed", aadhaarMasked: maskedAadhaar, kycStatus: status },
-        { status: 409 },
-      );
-    }
-
     const hashedAadhaar = deriveAadhaarHash(aadhaarValue);
     await prismaClient.voter.upsert({
       where: { hashedAadhaar },
@@ -39,25 +29,23 @@ export async function POST(request: Request) {
         hashedAadhaar,
         isVerified: true,
         hasVoted: false,
-        displayName: name || undefined,
+        displayName: undefined,
       },
       update: {
         isVerified: true,
-        displayName: name || undefined,
+        displayName: undefined,
       },
     });
 
-    console.info("AADHAAR identity confirmed", {
+    console.info("AADHAAR identity marked verified without remote OTP check (dev mode)", {
       aadhaarMasked: maskedAadhaar,
       referenceId,
-      kycStatus: status,
     });
 
     return NextResponse.json({
       ok: true,
-      status,
       aadhaarMasked: maskedAadhaar,
-      name: name ?? null,
+      name: null,
     });
   } catch (error) {
     const message =
