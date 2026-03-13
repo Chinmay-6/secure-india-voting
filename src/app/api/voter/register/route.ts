@@ -53,24 +53,22 @@ export async function POST(request: Request) {
   const hashedAadhaar = deriveAadhaarHash(aadhaarInput);
   const mobileHash = deriveMobileHash(mobile);
   const mobileLast4 = mobile.slice(-4);
-  const voter = await prismaClient.voter.upsert({
+  const existing = await prismaClient.voter.findUnique({
     where: { hashedAadhaar },
-    create: {
-      hashedAadhaar,
+  });
+  if (!existing || !existing.isVerified) {
+    return NextResponse.json(
+      { error: "Complete Aadhaar KYC verification before registering." },
+      { status: 403 },
+    );
+  }
+
+  const voter = await prismaClient.voter.update({
+    where: { hashedAadhaar },
+    data: {
       mobileHash,
       mobileLast4,
       displayName: displayNameInput ?? undefined,
-      isVerified: false,
-      hasVoted: false,
-      faceDescriptor: JSON.stringify(faceDescriptor),
-      selfieImage: selfieBytes,
-    },
-    update: {
-      mobileHash,
-      mobileLast4,
-      displayName: displayNameInput ?? undefined,
-      isVerified: false,
-      hasVoted: false,
       faceDescriptor: JSON.stringify(faceDescriptor),
       selfieImage: selfieBytes,
       sessionToken: null,

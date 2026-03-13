@@ -3,14 +3,16 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Camera, IdCard } from "lucide-react";
+import { Camera, IdCard, ShieldCheck, SmartphoneNfc } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ReactWebcam from "react-webcam";
 import { computeFaceDescriptorFromDataUrl, loadFaceModels } from "@/lib/faceApiClient";
+import { useAadhaarKyc } from "@/hooks/useAadhaarKyc";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [aadhaarInput, setAadhaarInput] = useState("");
+  const [otpInput, setOtpInput] = useState("");
   const [mobileInput, setMobileInput] = useState("");
   const [nameInput, setNameInput] = useState("");
   const [selfieDataUrl, setSelfieDataUrl] = useState<string | null>(null);
@@ -20,6 +22,16 @@ export default function RegisterPage() {
   const webcamRef = useRef<ReactWebcam | null>(null);
   const [modelsReady, setModelsReady] = useState(false);
   const [modelError, setModelError] = useState("");
+  const {
+    step: kycStep,
+    loading: kycLoading,
+    error: kycError,
+    success: kycSuccess,
+    transactionId,
+    aadhaarMasked,
+    checkExistence,
+    confirmIdentity,
+  } = useAadhaarKyc();
 
   async function ensureModels() {
     setModelError("");
@@ -57,8 +69,8 @@ export default function RegisterPage() {
       setErrorText("Face models unavailable. Run: node scripts/download-face-models.mjs");
       return;
     }
-    if (!/^\d{12}$/.test(aadhaarInput)) {
-      setErrorText("Enter a valid 12-digit Aadhaar number.");
+    if (kycStep !== "verified") {
+      setErrorText("Complete Aadhaar KYC verification before registering.");
       return;
     }
     if (!/^\d{10}$/.test(mobileInput)) {
@@ -103,49 +115,132 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto np-card np-card-muted p-6 sm:p-8 space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-full bg-(--np-saffron)/10 flex items-center justify-center text-(--np-saffron)">
-          <IdCard className="h-5 w-5" />
+    <div className="max-w-xl mx-auto space-y-6">
+      <div className="np-card np-card-muted p-6 sm:p-8 space-y-5">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-(--np-saffron)/10 flex items-center justify-center text-(--np-saffron)">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-semibold tracking-wide text-(--np-ink) uppercase">
+              Step 1 · Aadhaar KYC
+            </h1>
+            <p className="text-xs text-(--np-ink-muted)">
+              Validate your Aadhaar against UIDAI through the Sandbox.co.in API.
+            </p>
+          </div>
         </div>
-        <div className="flex flex-col">
-          <h1 className="text-lg sm:text-xl font-semibold text-(--np-ink)">Voter Registration</h1>
-          <p className="text-xs text-(--np-ink-muted)">
-            Register your identity before starting the secure verification and voting process.
-          </p>
+        <div className="grid gap-4">
+          <label className="text-xs font-medium text-(--np-ink-muted)">
+            Aadhaar number
+            <input
+              value={aadhaarInput}
+              onChange={(e) => setAadhaarInput(e.target.value.replace(/\D/g, "").slice(0, 12))}
+              className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+              placeholder="0000 0000 0000"
+              inputMode="numeric"
+              disabled={kycStep === "verified"}
+            />
+          </label>
+          {kycStep !== "verified" && (
+            <div className="flex items-center justify-between gap-3">
+              <div className="np-pill">
+                <SmartphoneNfc className="h-3 w-3" />
+                OTP is sent to the Aadhaar-linked mobile number.
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={kycLoading}
+                onClick={() => checkExistence(aadhaarInput)}
+              >
+                {kycLoading ? "Contacting Aadhaar..." : "Check Aadhaar"}
+              </Button>
+            </div>
+          )}
+          {kycStep === "otp-sent" && (
+            <label className="text-xs font-medium text-(--np-ink-muted)">
+              OTP
+              <input
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+                placeholder="Enter 6-digit OTP"
+                inputMode="numeric"
+              />
+            </label>
+          )}
+          {transactionId && (
+            <p className="text-[11px] text-(--np-ink-muted)">
+              Transaction ID: <span className="font-mono">{transactionId}</span>
+            </p>
+          )}
+          {aadhaarMasked && kycStep === "verified" && (
+            <p className="text-[11px] text-emerald-700">
+              Aadhaar verified for {aadhaarMasked}. You can now complete registration.
+            </p>
+          )}
+          {kycError && (
+            <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+              {kycError}
+            </p>
+          )}
+          {kycSuccess && kycStep !== "verified" && (
+            <p className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2">
+              {kycSuccess}
+            </p>
+          )}
+          {kycStep === "otp-sent" && (
+            <div className="flex items-center justify-end gap-3 pt-1">
+              <Button
+                type="button"
+                size="sm"
+                disabled={kycLoading || otpInput.replace(/\D/g, "").length !== 6}
+                onClick={() => confirmIdentity(otpInput, aadhaarInput)}
+              >
+                {kycLoading ? "Verifying OTP..." : "Confirm Aadhaar"}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
-      <div className="grid gap-4">
-        <label className="text-xs font-medium text-(--np-ink-muted)">
-          Full name
-          <input
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
-            placeholder="As per Aadhaar"
-          />
-        </label>
-        <label className="text-xs font-medium text-(--np-ink-muted)">
-          Aadhaar number
-          <input
-            value={aadhaarInput}
-            onChange={(e) => setAadhaarInput(e.target.value.replace(/\D/g, "").slice(0, 12))}
-            className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
-            placeholder="0000 0000 0000"
-            inputMode="numeric"
-          />
-        </label>
-        <label className="text-xs font-medium text-(--np-ink-muted)">
-          Mobile number (linked to Aadhaar)
-          <input
-            value={mobileInput}
-            onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
-            placeholder="10-digit mobile number"
-            inputMode="numeric"
-          />
-        </label>
-      </div>
+
+      <div className="np-card np-card-muted p-6 sm:p-8 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-(--np-saffron)/10 flex items-center justify-center text-(--np-saffron)">
+            <IdCard className="h-5 w-5" />
+          </div>
+          <div className="flex flex-col">
+            <h2 className="text-lg sm:text-xl font-semibold text-(--np-ink)">Voter Registration</h2>
+            <p className="text-xs text-(--np-ink-muted)">
+              After Aadhaar is verified, register your contact and biometric details.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-4">
+          <label className="text-xs font-medium text-(--np-ink-muted)">
+            Full name
+            <input
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+              placeholder="As per Aadhaar"
+              disabled={kycStep !== "verified"}
+            />
+          </label>
+          <label className="text-xs font-medium text-(--np-ink-muted)">
+            Mobile number (linked to Aadhaar)
+            <input
+              value={mobileInput}
+              onChange={(e) => setMobileInput(e.target.value.replace(/\D/g, "").slice(0, 10))}
+              className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
+              placeholder="10-digit mobile number"
+              inputMode="numeric"
+              disabled={kycStep !== "verified"}
+            />
+          </label>
+        </div>
       <div className="space-y-3">
         <div className="text-xs font-medium text-(--np-ink-muted)">Selfie capture</div>
         <div className="relative overflow-hidden rounded-xl border border-(--np-border) bg-black/70 aspect-video flex items-center justify-center">
@@ -194,9 +289,15 @@ export default function RegisterPage() {
         <p className="text-[11px] text-(--np-ink-muted)">
           By continuing, you consent to secure processing of your encrypted Aadhaar reference.
         </p>
-        <Button type="button" size="lg" onClick={handleRegister} disabled={submitting}>
+        <Button
+          type="button"
+          size="lg"
+          onClick={handleRegister}
+          disabled={submitting || kycStep !== "verified"}
+        >
           {submitting ? "Registering..." : "Register and verify"}
         </Button>
+      </div>
       </div>
     </div>
   );
