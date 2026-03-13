@@ -7,7 +7,7 @@ export async function GET() {
     take: 100,
     select: {
       id: true,
-      mobile: true,
+      mobileLast4: true,
       displayName: true,
       isVerified: true,
       hasVoted: true,

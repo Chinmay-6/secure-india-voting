@@ -26,7 +26,9 @@ model Candidate {
 model Voter {
   id             String   @id @default(cuid())
   hashedAadhaar  String   @unique
-  mobile         String?
+  mobile         String?   // legacy, no longer written to
+  mobileHash     String?
+  mobileLast4    String?
   displayName    String?
   isVerified     Boolean  @default(false)
   hasVoted       Boolean  @default(false)

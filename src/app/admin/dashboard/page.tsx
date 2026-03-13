@@ -31,7 +31,7 @@ type MetricsShape = {
 
 type VoterRow = {
   id: string;
-  mobile: string | null;
+  mobileLast4: string | null;
   displayName: string | null;
   isVerified: boolean;
   hasVoted: boolean;
@@ -306,7 +306,7 @@ export default function AdminDashboardPage() {
                 {voters.map((v) => (
                   <tr key={v.id} className="border-t border-(--np-border)">
                     <td className="px-3 py-2">{v.displayName || v.id.slice(0, 8)}</td>
-                    <td className="px-3 py-2">{v.mobile ? `******${v.mobile.slice(-4)}` : "-"}</td>
+                    <td className="px-3 py-2">{v.mobileLast4 ? `******${v.mobileLast4}` : "-"}</td>
                     <td className="px-3 py-2">{v.isVerified ? "Yes" : "No"}</td>
                     <td className="px-3 py-2">{v.hasVoted ? "Yes" : "No"}</td>
                   </tr>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHash, randomBytes } from "crypto";
 import { prismaClient } from "@/lib/prisma";
-import { deriveAadhaarHash } from "@/lib/hash";
+import { deriveAadhaarHash, deriveMobileHash } from "@/lib/hash";
 import { appendAuditBlock } from "@/lib/auditChain";
 
 function normalizeMobile(value: string) {
@@ -25,11 +25,12 @@ export async function POST(request: Request) {
   }
 
   const hashedAadhaar = deriveAadhaarHash(aadhaarInput);
+  const mobileHash = deriveMobileHash(mobile);
   const voter = await prismaClient.voter.findUnique({ where: { hashedAadhaar } });
   if (!voter) {
     return NextResponse.json({ error: "Voter not registered" }, { status: 404 });
   }
-  if (!voter.mobile || voter.mobile !== mobile) {
+  if (!voter.mobileHash || voter.mobileHash !== mobileHash) {
     return NextResponse.json(
       { error: "Mobile number does not match Aadhaar registration" },
       { status: 403 }
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     },
   });
 
-  console.info("VOTEXA OTP:", otpCode, "Mobile:", mobile);
+  console.info("VOTEXA OTP:", otpCode, "MobileLast4:", mobile.slice(-4));
 
   await appendAuditBlock(
     "voter.otp.send",

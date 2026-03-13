@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prismaClient } from "@/lib/prisma";
-import { deriveAadhaarHash } from "@/lib/hash";
+import { deriveAadhaarHash, deriveMobileHash } from "@/lib/hash";
 import { appendAuditBlock } from "@/lib/auditChain";
 
 function normalizeMobile(value: string) {
@@ -51,11 +51,14 @@ export async function POST(request: Request) {
   }
 
   const hashedAadhaar = deriveAadhaarHash(aadhaarInput);
+  const mobileHash = deriveMobileHash(mobile);
+  const mobileLast4 = mobile.slice(-4);
   const voter = await prismaClient.voter.upsert({
     where: { hashedAadhaar },
     create: {
       hashedAadhaar,
-      mobile,
+      mobileHash,
+      mobileLast4,
       displayName: displayNameInput ?? undefined,
       isVerified: false,
       hasVoted: false,
@@ -63,7 +66,8 @@ export async function POST(request: Request) {
       selfieImage: selfieBytes,
     },
     update: {
-      mobile,
+      mobileHash,
+      mobileLast4,
       displayName: displayNameInput ?? undefined,
       isVerified: false,
       hasVoted: false,
@@ -77,7 +81,7 @@ export async function POST(request: Request) {
     "voter.register",
     {
       voterId: voter.id,
-      mobileLast4: mobile.slice(-4),
+      mobileLast4,
     },
     { actorType: "voter", actorId: voter.id }
   );
