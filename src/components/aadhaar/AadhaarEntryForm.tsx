@@ -1,9 +1,8 @@
-\"use client\";
+"use client";
 
 import { useState } from "react";
 import { Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 type Step = "aadhaar" | "otp" | "done";
 
@@ -113,13 +112,13 @@ export function AadhaarEntryForm() {
           <div className="space-y-2">
             <label className="text-xs font-medium text-(--np-ink-muted)">
               Aadhaar number
-              <Input
+              <input
                 value={aadhaar}
                 onChange={(e) => setAadhaar(e.target.value)}
                 inputMode="numeric"
                 maxLength={14}
                 placeholder="0000 0000 0000"
-                className="mt-1 bg-white border-(--np-border)"
+                className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
               />
             </label>
             <p className="text-[11px] text-(--np-ink-muted)">
@@ -151,13 +150,13 @@ export function AadhaarEntryForm() {
           <div className="space-y-2">
             <label className="text-xs font-medium text-(--np-ink-muted)">
               OTP
-              <Input
+              <input
                 value={otp}
                 onChange={(e) => setOtp(e.target.value)}
                 inputMode="numeric"
                 maxLength={6}
                 placeholder="Enter 6-digit OTP"
-                className="mt-1 bg-white border-(--np-border)"
+                className="mt-1 w-full rounded-lg border border-(--np-border) bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-(--np-saffron)"
               />
             </label>
             <p className="text-[11px] text-(--np-ink-muted)">
